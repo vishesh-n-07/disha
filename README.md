@@ -13,7 +13,7 @@ with an SOS alert that goes only to members of the same trip.
 ## Roadmap (MVP)
 - [x] Map + live location
 - [x] Create Trip
-- [ ] Join trip via invite code
+- [x] Join trip via invite code
 - [ ] Real-time multi-user locations (FastAPI + WebSockets)
 - [ ] SOS to trip members with delivery status and retries
 - [ ] Tests, deployment, architecture doc
@@ -26,3 +26,4 @@ with an SOS alert that goes only to members of the same trip.
 - Explicit consent for location sharing; easy to stop at any time
 - Location visible only to members of the same trip
 - SOS never claims guaranteed help; it shows honest delivery status
+
