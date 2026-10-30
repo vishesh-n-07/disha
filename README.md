@@ -1,4 +1,4 @@
-# DISHA
+﻿# DISHA
 
 Group mobility and personal-safety platform: a shared live map for trip groups,
 with an SOS alert that goes only to members of the same trip.
@@ -12,7 +12,7 @@ with an SOS alert that goes only to members of the same trip.
 
 ## Roadmap (MVP)
 - [x] Map + live location
-- [ ] Create Trip
+- [x] Create Trip
 - [ ] Join trip via invite code
 - [ ] Real-time multi-user locations (FastAPI + WebSockets)
 - [ ] SOS to trip members with delivery status and retries

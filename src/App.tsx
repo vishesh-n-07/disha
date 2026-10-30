@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -8,6 +8,7 @@ import {
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import "./App.css";
+import TripPanel from "./components/TripPanel";
 
 type Pos = { lat: number; lng: number; accuracy: number };
 
@@ -82,6 +83,7 @@ export default function App() {
           </>
         )}
       </MapContainer>
+      <TripPanel />
     </div>
   );
 }

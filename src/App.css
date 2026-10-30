@@ -3,3 +3,20 @@ html, body, #root { height: 100%; margin: 0; }
 header { padding: 12px 16px; font-weight: 700; background: #0b3d91; color: #fff; }
 .map { flex: 1; }
 .error { padding: 8px 16px; background: #fde8e8; color: #9b1c1c; }
+.app { position: relative; }
+.trip-panel {
+  position: absolute; top: 70px; right: 12px; z-index: 1000;
+  width: 260px; padding: 14px; background: #fff; color: #111;
+  border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,.25);
+}
+.trip-panel h2 { margin: 0 0 10px; font-size: 1.1rem; }
+.trip-panel input { width: 100%; box-sizing: border-box; margin-bottom: 8px; padding: 8px; }
+.trip-panel button { padding: 8px 12px; cursor: pointer; }
+.trip-panel button:disabled { opacity: .5; cursor: not-allowed; }
+.trip-panel .secondary { margin-top: 10px; width: 100%; }
+.trip-panel ul { list-style: none; padding: 0; margin: 4px 0; }
+.trip-panel li { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.label { margin: 10px 0 4px; font-size: .75rem; color: #666; text-transform: uppercase; }
+.code-row { display: flex; align-items: center; justify-content: space-between; }
+.code-row code { font-size: 1.4rem; letter-spacing: 3px; font-weight: 700; }
