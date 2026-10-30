@@ -1,32 +1,28 @@
-# React + TypeScript + Vite
+# DISHA
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Group mobility and personal-safety platform: a shared live map for trip groups,
+with an SOS alert that goes only to members of the same trip.
 
-Currently, two official plugins are available:
+> Status: early prototype (Brick 1 of the MVP)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## What works now
+- Interactive map (Leaflet + OpenStreetMap)
+- Live user location via the Browser Geolocation API
+- Accuracy circle and handled permission/failure errors
 
-## React Compiler
+## Roadmap (MVP)
+- [x] Map + live location
+- [ ] Create Trip
+- [ ] Join trip via invite code
+- [ ] Real-time multi-user locations (FastAPI + WebSockets)
+- [ ] SOS to trip members with delivery status and retries
+- [ ] Tests, deployment, architecture doc
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Run locally
+    npm install
+    npm run dev
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Design principles
+- Explicit consent for location sharing; easy to stop at any time
+- Location visible only to members of the same trip
+- SOS never claims guaranteed help; it shows honest delivery status
