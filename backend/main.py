@@ -1,4 +1,5 @@
 ﻿import re
+import base64
 import secrets
 import time
 import uuid
@@ -106,11 +107,14 @@ def leave_trip(code: str, member_id: str):
         del trips[trip["code"]]  # empty trips are removed
 
 
-# ---------- Live locations + SOS (WebSocket) ----------
+# ---------- Live locations + SOS + avatars (WebSocket) ----------
 locations: dict[str, dict[str, dict]] = {}         # trip code -> member_id -> latest location
 connections: dict[str, dict[str, WebSocket]] = {}  # trip code -> member_id -> socket
 sos_events: dict[str, dict[str, dict]] = {}        # trip code -> sos_id -> event
+avatars: dict[str, dict[str, str]] = {}            # trip code -> member_id -> small JPEG data URL
 WS_ORIGIN = re.compile(r"http://(localhost|127\.0\.0\.1):\d+")
+AVATAR_PREFIX = "data:image/jpeg;base64,"
+AVATAR_MAX_CHARS = 20000
 
 
 async def send_to(code: str, member_id: str, message: dict) -> bool:
@@ -140,7 +144,26 @@ def valid_location(d: dict) -> dict | None:
         return None
     if not (-90 <= lat <= 90 and -180 <= lng <= 180 and 0 <= acc <= 100000):
         return None
-    return {"lat": lat, "lng": lng, "accuracy": acc, "ts": time.time()}
+    heading = d.get("heading")
+    try:
+        heading = None if heading is None else float(heading) % 360
+    except (TypeError, ValueError):
+        heading = None
+    if heading is not None and not (0 <= heading < 360):
+        heading = None
+    return {"lat": lat, "lng": lng, "accuracy": acc, "heading": heading, "ts": time.time()}
+
+
+def valid_avatar(s) -> str | None:
+    if not isinstance(s, str) or not s.startswith(AVATAR_PREFIX) or len(s) > AVATAR_MAX_CHARS:
+        return None
+    try:
+        raw = base64.b64decode(s[len(AVATAR_PREFIX):], validate=True)
+    except Exception:
+        return None
+    if not raw.startswith(b"\xff\xd8\xff"):  # JPEG magic bytes
+        return None
+    return s
 
 
 def public_sos(ev: dict, trip: dict) -> dict:
@@ -185,10 +208,21 @@ async def trip_socket(ws: WebSocket, code: str, member_id: str):
     connections.setdefault(code, {})[member_id] = ws
 
     member_ids = {m["id"] for m in trip["members"]}
-    snapshot = {
-        mid: loc for mid, loc in locations.get(code, {}).items() if mid in member_ids
-    }
-    await ws.send_json({"type": "snapshot", "locations": snapshot})
+    await ws.send_json(
+        {
+            "type": "snapshot",
+            "locations": {
+                mid: loc
+                for mid, loc in locations.get(code, {}).items()
+                if mid in member_ids
+            },
+            "avatars": {
+                mid: av
+                for mid, av in avatars.get(code, {}).items()
+                if mid in member_ids
+            },
+        }
+    )
 
     # Re-deliver active SOS alerts (late joiners and reconnects)
     for ev in list(sos_events.get(code, {}).values()):
@@ -222,6 +256,13 @@ async def trip_socket(ws: WebSocket, code: str, member_id: str):
                 await broadcast(
                     code, {"type": "stop", "member_id": member_id}, exclude=member_id
                 )
+
+            elif kind == "avatar":
+                av = valid_avatar(data.get("avatar"))
+                if av is None:
+                    continue
+                avatars.setdefault(code, {})[member_id] = av
+                await broadcast(code, {"type": "avatar", "member_id": member_id, "avatar": av})
 
             elif kind == "sos":
                 # One active SOS per member: retries reuse it instead of duplicating

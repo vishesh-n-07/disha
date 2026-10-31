@@ -99,6 +99,7 @@ Open http://localhost:5173. To test with two people on one laptop, open a second
 - [x] Join trip via invite code
 - [x] Real-time multi-user locations (FastAPI + WebSockets)
 - [x] SOS to trip members with delivery status, acknowledgement and retry
+- [x] Photo and direction pins
 - [ ] Automated tests (backend API and WebSocket flows)
 - [ ] Persist sessions across refresh
 - [ ] PostgreSQL + PostGIS storage
@@ -111,3 +112,4 @@ Open http://localhost:5173. To test with two people on one laptop, open a second
 ## Competitor note
 
 Google Maps, Apple Find My and Life360 already offer live location sharing. DISHA's focus is the trip-centred workflow: temporary groups, honest SOS delivery status, and separation alerts, with privacy as a design constraint. Any claim of differentiation still needs validation with real users.
+

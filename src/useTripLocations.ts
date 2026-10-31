@@ -1,7 +1,12 @@
 ﻿import { useEffect, useRef, useState } from "react";
 import type { Session } from "./trip";
 
-export type Pos = { lat: number; lng: number; accuracy: number };
+export type Pos = {
+  lat: number;
+  lng: number;
+  accuracy: number;
+  heading?: number | null;
+};
 export type MemberLocation = Pos & { ts: number };
 export type ConnStatus = "off" | "connecting" | "live" | "reconnecting";
 export type SosEvent = {
@@ -27,6 +32,7 @@ export function useTripLocations(
   sharing: boolean
 ) {
   const [locations, setLocations] = useState<Record<string, MemberLocation>>({});
+  const [avatars, setAvatars] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<ConnStatus>("off");
   const [alerts, setAlerts] = useState<Record<string, SosEvent>>({});
   const [mySos, setMySos] = useState<SosEvent | null>(null);
@@ -40,6 +46,7 @@ export function useTripLocations(
   useEffect(() => {
     if (!code || !memberId) {
       setLocations({});
+      setAvatars({});
       setAlerts({});
       setMySos(null);
       setSosPending(false);
@@ -71,6 +78,7 @@ export function useTripLocations(
         }
         if (msg.type === "snapshot") {
           setLocations(msg.locations);
+          setAvatars(msg.avatars ?? {});
         } else if (msg.type === "location") {
           setLocations((prev) => ({
             ...prev,
@@ -78,6 +86,7 @@ export function useTripLocations(
               lat: msg.lat,
               lng: msg.lng,
               accuracy: msg.accuracy,
+              heading: msg.heading ?? null,
               ts: msg.ts,
             },
           }));
@@ -87,6 +96,8 @@ export function useTripLocations(
             delete next[msg.member_id];
             return next;
           });
+        } else if (msg.type === "avatar") {
+          setAvatars((prev) => ({ ...prev, [msg.member_id]: msg.avatar }));
         } else if (msg.type === "sos") {
           setAlerts((prev) => ({ ...prev, [msg.sos.id]: msg.sos }));
         } else if (msg.type === "sos_status") {
@@ -164,5 +175,23 @@ export function useTripLocations(
     }
   }
 
-  return { locations, status, alerts, mySos, sosPending, sendSos, cancelSos, ackSos };
+  function sendAvatar(dataUrl: string) {
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "avatar", avatar: dataUrl }));
+    }
+  }
+
+  return {
+    locations,
+    avatars,
+    status,
+    alerts,
+    mySos,
+    sosPending,
+    sendSos,
+    cancelSos,
+    ackSos,
+    sendAvatar,
+  };
 }

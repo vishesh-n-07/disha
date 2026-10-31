@@ -1,9 +1,10 @@
-﻿import { useEffect, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import {
   MapContainer,
   TileLayer,
   CircleMarker,
   Circle,
+  Marker,
   Tooltip,
   useMap,
 } from "react-leaflet";
@@ -11,8 +12,11 @@ import "leaflet/dist/leaflet.css";
 import "./App.css";
 import TripPanel from "./components/TripPanel";
 import SosControls from "./components/SosControls";
+import AvatarPicker from "./components/AvatarPicker";
 import type { Session } from "./trip";
 import { useTripLocations, type Pos } from "./useTripLocations";
+import { memberIcon } from "./memberIcon";
+import { bearing, distanceM } from "./geo";
 
 function Recenter({ pos }: { pos: Pos }) {
   const map = useMap();
@@ -41,8 +45,23 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [sharing, setSharing] = useState(false);
-  const { locations, status, alerts, mySos, sosPending, sendSos, cancelSos, ackSos } =
-    useTripLocations(session, pos, sharing);
+  const {
+    locations,
+    avatars,
+    status,
+    alerts,
+    mySos,
+    sosPending,
+    sendSos,
+    cancelSos,
+    ackSos,
+    sendAvatar,
+  } = useTripLocations(session, pos, sharing);
+
+  // Direction of travel: use the device heading when available, otherwise
+  // work it out from how far I have moved since the last reference point.
+  const lastHeading = useRef<number | null>(null);
+  const anchor = useRef<{ lat: number; lng: number } | null>(null);
 
   // Sharing always starts OFF for a new trip (explicit consent)
   function handleSession(s: Session | null) {
@@ -58,11 +77,19 @@ export default function App() {
     const id = navigator.geolocation.watchPosition(
       (p) => {
         setError(null);
-        setPos({
-          lat: p.coords.latitude,
-          lng: p.coords.longitude,
-          accuracy: p.coords.accuracy,
-        });
+        const here = { lat: p.coords.latitude, lng: p.coords.longitude };
+        const acc = p.coords.accuracy;
+        const h = p.coords.heading;
+        if (typeof h === "number" && !Number.isNaN(h)) {
+          lastHeading.current = h;
+          anchor.current = here;
+        } else if (!anchor.current) {
+          anchor.current = here;
+        } else if (distanceM(anchor.current, here) > Math.max(10, acc)) {
+          lastHeading.current = bearing(anchor.current, here);
+          anchor.current = here;
+        }
+        setPos({ ...here, accuracy: acc, heading: lastHeading.current });
       },
       (e) => {
         const msgs: Record<number, string> = {
@@ -101,15 +128,31 @@ export default function App() {
               radius={pos.accuracy}
               pathOptions={{ color: myColor, fillOpacity: 0.1, weight: 1 }}
             />
-            <CircleMarker
-              center={[pos.lat, pos.lng]}
-              radius={10}
-              pathOptions={{ color: myColor, fillOpacity: 0.9 }}
-            >
-              <Tooltip permanent direction="top" offset={[0, -10]}>
-                You
-              </Tooltip>
-            </CircleMarker>
+            {session ? (
+              <Marker
+                position={[pos.lat, pos.lng]}
+                icon={memberIcon({
+                  name: me?.name ?? "You",
+                  color: myColor,
+                  avatar: avatars[session.memberId],
+                  heading: pos.heading,
+                })}
+              >
+                <Tooltip permanent direction="top" offset={[0, -24]}>
+                  You
+                </Tooltip>
+              </Marker>
+            ) : (
+              <CircleMarker
+                center={[pos.lat, pos.lng]}
+                radius={10}
+                pathOptions={{ color: myColor, fillOpacity: 0.9 }}
+              >
+                <Tooltip permanent direction="top" offset={[0, -10]}>
+                  You
+                </Tooltip>
+              </CircleMarker>
+            )}
             <Recenter pos={pos} />
           </>
         )}
@@ -120,21 +163,20 @@ export default function App() {
               const m = session.trip.members.find((x) => x.id === id);
               if (!m) return null;
               return (
-                <CircleMarker
+                <Marker
                   key={id}
-                  center={[loc.lat, loc.lng]}
-                  radius={10}
-                  pathOptions={{
-                    color: "#ffffff",
-                    weight: 2,
-                    fillColor: m.color,
-                    fillOpacity: 1,
-                  }}
+                  position={[loc.lat, loc.lng]}
+                  icon={memberIcon({
+                    name: m.name,
+                    color: m.color,
+                    avatar: avatars[id],
+                    heading: loc.heading,
+                  })}
                 >
-                  <Tooltip permanent direction="top" offset={[0, -10]}>
+                  <Tooltip permanent direction="top" offset={[0, -24]}>
                     {m.name}
                   </Tooltip>
-                </CircleMarker>
+                </Marker>
               );
             })}
         {Object.values(alerts).map(
@@ -164,16 +206,19 @@ export default function App() {
         onSharingChange={setSharing}
       />
       {session && (
-        <SosControls
-          status={status}
-          pos={pos}
-          mySos={mySos}
-          pending={sosPending}
-          alerts={alerts}
-          onSend={sendSos}
-          onCancel={cancelSos}
-          onAck={ackSos}
-        />
+        <>
+          <AvatarPicker current={avatars[session.memberId]} onPick={sendAvatar} />
+          <SosControls
+            status={status}
+            pos={pos}
+            mySos={mySos}
+            pending={sosPending}
+            alerts={alerts}
+            onSend={sendSos}
+            onCancel={cancelSos}
+            onAck={ackSos}
+          />
+        </>
       )}
     </div>
   );
