@@ -28,3 +28,4 @@ with an SOS alert that goes only to members of the same trip.
 - SOS never claims guaranteed help; it shows honest delivery status
 
 
+
