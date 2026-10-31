@@ -8,7 +8,7 @@ import {
   type Session,
 } from "../trip";
 
-export default function TripPanel() {
+export default function TripPanel({ onSession, sharing, onSharingChange }: { onSession: (s: Session | null) => void; sharing: boolean; onSharingChange: (v: boolean) => void }) {
   const [mode, setMode] = useState<"create" | "join">("create");
   const [session, setSession] = useState<Session | null>(null);
   const [tripName, setTripName] = useState("");
@@ -20,6 +20,10 @@ export default function TripPanel() {
 
   const sessionCode = session?.trip.code;
   const memberId = session?.memberId;
+
+  useEffect(() => {
+    onSession(session);
+  }, [session]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Refresh the member list every 3s (WebSockets replace this in a later brick)
   useEffect(() => {
@@ -164,6 +168,10 @@ export default function TripPanel() {
               </li>
             ))}
           </ul>
+          <label className="share">
+            <input type="checkbox" checked={sharing} onChange={(e) => onSharingChange(e.target.checked)} />
+            Share my location with this trip
+          </label>
           <button className="secondary" onClick={handleLeave}>
             Leave trip
           </button>
@@ -173,3 +181,4 @@ export default function TripPanel() {
     </aside>
   );
 }
+

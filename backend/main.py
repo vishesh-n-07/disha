@@ -1,7 +1,9 @@
-﻿import secrets
+﻿import re
+import secrets
+import time
 import uuid
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -102,3 +104,82 @@ def leave_trip(code: str, member_id: str):
     trip["members"] = [m for m in trip["members"] if m["id"] != member_id]
     if not trip["members"]:
         del trips[trip["code"]]  # empty trips are removed
+
+
+
+# ---------- Live locations (WebSocket) ----------
+locations: dict[str, dict[str, dict]] = {}       # trip code -> member_id -> latest location
+connections: dict[str, dict[str, WebSocket]] = {}  # trip code -> member_id -> socket
+WS_ORIGIN = re.compile(r"http://(localhost|127\.0\.0\.1):\d+")
+
+
+async def broadcast(code: str, message: dict, exclude: str | None = None):
+    for mid, sock in list(connections.get(code, {}).items()):
+        if mid == exclude:
+            continue
+        try:
+            await sock.send_json(message)
+        except Exception:
+            connections.get(code, {}).pop(mid, None)
+
+
+def valid_location(d: dict) -> dict | None:
+    try:
+        lat = float(d["lat"])
+        lng = float(d["lng"])
+        acc = float(d.get("accuracy", 0))
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not (-90 <= lat <= 90 and -180 <= lng <= 180 and 0 <= acc <= 100000):
+        return None
+    return {"lat": lat, "lng": lng, "accuracy": acc, "ts": time.time()}
+
+
+@app.websocket("/ws/{code}")
+async def trip_socket(ws: WebSocket, code: str, member_id: str):
+    # Reject unknown origins and non-members before accepting the connection
+    if not WS_ORIGIN.fullmatch(ws.headers.get("origin", "")):
+        await ws.close(code=1008)
+        return
+    trip = trips.get(code.upper())
+    if trip is None or not any(m["id"] == member_id for m in trip["members"]):
+        await ws.close(code=1008)
+        return
+
+    await ws.accept()
+    code = trip["code"]
+    connections.setdefault(code, {})[member_id] = ws
+
+    member_ids = {m["id"] for m in trip["members"]}
+    snapshot = {
+        mid: loc for mid, loc in locations.get(code, {}).items() if mid in member_ids
+    }
+    await ws.send_json({"type": "snapshot", "locations": snapshot})
+
+    try:
+        while True:
+            data = await ws.receive_json()
+            if not isinstance(data, dict):
+                continue
+            if data.get("type") == "location":
+                loc = valid_location(data)
+                if loc is None:
+                    continue
+                locations.setdefault(code, {})[member_id] = loc
+                await broadcast(
+                    code,
+                    {"type": "location", "member_id": member_id, **loc},
+                    exclude=member_id,
+                )
+            elif data.get("type") == "stop":
+                locations.get(code, {}).pop(member_id, None)
+                await broadcast(
+                    code, {"type": "stop", "member_id": member_id}, exclude=member_id
+                )
+    except (WebSocketDisconnect, ValueError):
+        pass
+    finally:
+        if connections.get(code, {}).get(member_id) is ws:
+            del connections[code][member_id]
+        locations.get(code, {}).pop(member_id, None)
+        await broadcast(code, {"type": "stop", "member_id": member_id})

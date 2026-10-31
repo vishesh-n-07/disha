@@ -4,13 +4,14 @@ import {
   TileLayer,
   CircleMarker,
   Circle,
+  Tooltip,
   useMap,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import "./App.css";
 import TripPanel from "./components/TripPanel";
-
-type Pos = { lat: number; lng: number; accuracy: number };
+import type { Session } from "./trip";
+import { useTripLocations, type Pos } from "./useTripLocations";
 
 function Recenter({ pos }: { pos: Pos }) {
   const map = useMap();
@@ -18,18 +19,34 @@ function Recenter({ pos }: { pos: Pos }) {
 
   useEffect(() => {
     if (!centered) {
-      map.setView([pos.lat, pos.lng], 16); // zoom in on the first fix only
+      map.setView([pos.lat, pos.lng], 16);
       setCentered(true);
     } else {
-      map.panTo([pos.lat, pos.lng]); // later updates just pan
+      map.panTo([pos.lat, pos.lng]);
     }
   }, [pos.lat, pos.lng]); // eslint-disable-line react-hooks/exhaustive-deps
   return null;
 }
 
+const STATUS_LABEL = {
+  off: "",
+  connecting: "Connecting...",
+  live: "Live",
+  reconnecting: "Reconnecting...",
+} as const;
+
 export default function App() {
   const [pos, setPos] = useState<Pos | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const { locations, status } = useTripLocations(session, pos, sharing);
+
+  // Sharing always starts OFF for a new trip (explicit consent)
+  function handleSession(s: Session | null) {
+    setSession(s);
+    if (!s) setSharing(false);
+  }
 
   useEffect(() => {
     if (!("geolocation" in navigator)) {
@@ -58,9 +75,17 @@ export default function App() {
     return () => navigator.geolocation.clearWatch(id);
   }, []);
 
+  const me = session
+    ? session.trip.members.find((m) => m.id === session.memberId)
+    : undefined;
+  const myColor = me?.color ?? "#1a73e8";
+
   return (
     <div className="app">
-      <header>DISHA</header>
+      <header>
+        <span>DISHA</span>
+        {session && <span className="status">{STATUS_LABEL[status]}</span>}
+      </header>
       {error && <div className="error">{error}</div>}
       <MapContainer center={[12.9716, 77.5946]} zoom={15} className="map">
         <TileLayer
@@ -72,18 +97,48 @@ export default function App() {
             <Circle
               center={[pos.lat, pos.lng]}
               radius={pos.accuracy}
-              pathOptions={{ color: "#1a73e8", fillOpacity: 0.1, weight: 1 }}
+              pathOptions={{ color: myColor, fillOpacity: 0.1, weight: 1 }}
             />
             <CircleMarker
               center={[pos.lat, pos.lng]}
               radius={10}
-              pathOptions={{ color: "#1a73e8", fillOpacity: 0.9 }}
-            />
+              pathOptions={{ color: myColor, fillOpacity: 0.9 }}>
+              <Tooltip permanent direction="top" offset={[0, -10]}>You</Tooltip>
+            </CircleMarker>
             <Recenter pos={pos} />
           </>
         )}
+        {session &&
+          Object.entries(locations)
+            .filter(([id]) => id !== session.memberId)
+            .map(([id, loc]) => {
+              const m = session.trip.members.find((x) => x.id === id);
+              if (!m) return null;
+              return (
+                <CircleMarker
+                  key={id}
+                  center={[loc.lat, loc.lng]}
+                  radius={10}
+                  pathOptions={{
+                    color: "#ffffff",
+                    weight: 2,
+                    fillColor: m.color,
+                    fillOpacity: 1,
+                  }}
+                >
+                  <Tooltip permanent direction="top" offset={[0, -10]}>
+                    {m.name}
+                  </Tooltip>
+                </CircleMarker>
+              );
+            })}
       </MapContainer>
-      <TripPanel />
+      <TripPanel
+        onSession={handleSession}
+        sharing={sharing}
+        onSharingChange={setSharing}
+      />
     </div>
   );
 }
+
