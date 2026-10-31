@@ -30,3 +30,18 @@ header { display: flex; justify-content: space-between; align-items: center; }
 .status { font-size: .8rem; font-weight: 400; opacity: .9; }
 .trip-panel input[type="checkbox"] { width: auto; margin: 0; }
 .share { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: .85rem; }
+
+.sos-box { position: absolute; left: 12px; bottom: 28px; z-index: 1000; max-width: 280px; }
+.sos-btn { width: 72px; height: 72px; border-radius: 50%; border: 4px solid #fff; background: #d32f2f; color: #fff; font-weight: 800; font-size: 1.1rem; cursor: pointer; box-shadow: 0 2px 12px rgba(0,0,0,.4); }
+.sos-status { background: #fff; color: #111; padding: 12px; border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,.3); }
+.sos-status p { margin: 6px 0; font-size: .85rem; }
+.sos-status .note { color: #555; font-size: .75rem; }
+.sos-status .warn { color: #9b1c1c; }
+.sos-status button { padding: 8px 12px; cursor: pointer; }
+.sos-status .secondary { margin-top: 8px; width: 100%; }
+.sos-send { background: #d32f2f; color: #fff; border: none; border-radius: 6px; font-weight: 700; }
+.sos-actions { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+.call { display: inline-block; padding: 8px 12px; background: #188038; color: #fff; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: .85rem; }
+.sos-alerts { position: absolute; top: 70px; left: 50%; transform: translateX(-50%); z-index: 1100; display: flex; flex-direction: column; gap: 8px; width: min(340px, 90vw); }
+.sos-alert { background: #fff4f4; color: #111; border: 2px solid #d32f2f; border-radius: 10px; padding: 10px 12px; box-shadow: 0 2px 12px rgba(0,0,0,.35); font-size: .9rem; }
+.sos-alert button { padding: 8px 12px; cursor: pointer; }

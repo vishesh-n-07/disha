@@ -106,21 +106,29 @@ def leave_trip(code: str, member_id: str):
         del trips[trip["code"]]  # empty trips are removed
 
 
-
-# ---------- Live locations (WebSocket) ----------
-locations: dict[str, dict[str, dict]] = {}       # trip code -> member_id -> latest location
+# ---------- Live locations + SOS (WebSocket) ----------
+locations: dict[str, dict[str, dict]] = {}         # trip code -> member_id -> latest location
 connections: dict[str, dict[str, WebSocket]] = {}  # trip code -> member_id -> socket
+sos_events: dict[str, dict[str, dict]] = {}        # trip code -> sos_id -> event
 WS_ORIGIN = re.compile(r"http://(localhost|127\.0\.0\.1):\d+")
 
 
+async def send_to(code: str, member_id: str, message: dict) -> bool:
+    sock = connections.get(code, {}).get(member_id)
+    if sock is None:
+        return False
+    try:
+        await sock.send_json(message)
+        return True
+    except Exception:
+        connections.get(code, {}).pop(member_id, None)
+        return False
+
+
 async def broadcast(code: str, message: dict, exclude: str | None = None):
-    for mid, sock in list(connections.get(code, {}).items()):
-        if mid == exclude:
-            continue
-        try:
-            await sock.send_json(message)
-        except Exception:
-            connections.get(code, {}).pop(mid, None)
+    for mid in list(connections.get(code, {})):
+        if mid != exclude:
+            await send_to(code, mid, message)
 
 
 def valid_location(d: dict) -> dict | None:
@@ -133,6 +141,32 @@ def valid_location(d: dict) -> dict | None:
     if not (-90 <= lat <= 90 and -180 <= lng <= 180 and 0 <= acc <= 100000):
         return None
     return {"lat": lat, "lng": lng, "accuracy": acc, "ts": time.time()}
+
+
+def public_sos(ev: dict, trip: dict) -> dict:
+    recipients = [m["id"] for m in trip["members"] if m["id"] != ev["member_id"]]
+    return {
+        "id": ev["id"],
+        "member_id": ev["member_id"],
+        "name": ev["name"],
+        "location": ev["location"],
+        "ts": ev["ts"],
+        "resolved": ev["resolved"],
+        "recipients": len(recipients),
+        "delivered": len([r for r in recipients if r in ev["delivered"]]),
+        "seen": len([r for r in recipients if r in ev["seen"]]),
+    }
+
+
+async def push_status(code: str, trip: dict, ev: dict):
+    await send_to(code, ev["member_id"], {"type": "sos_status", "sos": public_sos(ev, trip)})
+
+
+async def deliver_sos(code: str, trip: dict, ev: dict, member_id: str) -> bool:
+    ok = await send_to(code, member_id, {"type": "sos", "sos": public_sos(ev, trip)})
+    if ok:
+        ev["delivered"].add(member_id)
+    return ok
 
 
 @app.websocket("/ws/{code}")
@@ -156,12 +190,23 @@ async def trip_socket(ws: WebSocket, code: str, member_id: str):
     }
     await ws.send_json({"type": "snapshot", "locations": snapshot})
 
+    # Re-deliver active SOS alerts (late joiners and reconnects)
+    for ev in list(sos_events.get(code, {}).values()):
+        if ev["resolved"]:
+            continue
+        if ev["member_id"] == member_id:
+            await push_status(code, trip, ev)
+        elif await deliver_sos(code, trip, ev, member_id):
+            await push_status(code, trip, ev)
+
     try:
         while True:
             data = await ws.receive_json()
             if not isinstance(data, dict):
                 continue
-            if data.get("type") == "location":
+            kind = data.get("type")
+
+            if kind == "location":
                 loc = valid_location(data)
                 if loc is None:
                     continue
@@ -171,11 +216,58 @@ async def trip_socket(ws: WebSocket, code: str, member_id: str):
                     {"type": "location", "member_id": member_id, **loc},
                     exclude=member_id,
                 )
-            elif data.get("type") == "stop":
+
+            elif kind == "stop":
                 locations.get(code, {}).pop(member_id, None)
                 await broadcast(
                     code, {"type": "stop", "member_id": member_id}, exclude=member_id
                 )
+
+            elif kind == "sos":
+                # One active SOS per member: retries reuse it instead of duplicating
+                ev = next(
+                    (
+                        e
+                        for e in sos_events.get(code, {}).values()
+                        if e["member_id"] == member_id and not e["resolved"]
+                    ),
+                    None,
+                )
+                if ev is None:
+                    name = next(
+                        (m["name"] for m in trip["members"] if m["id"] == member_id),
+                        "Someone",
+                    )
+                    ev = {
+                        "id": str(uuid.uuid4()),
+                        "member_id": member_id,
+                        "name": name,
+                        "location": valid_location(data)
+                        or locations.get(code, {}).get(member_id),
+                        "ts": time.time(),
+                        "resolved": False,
+                        "delivered": set(),
+                        "seen": set(),
+                    }
+                    sos_events.setdefault(code, {})[ev["id"]] = ev
+                    for m in list(trip["members"]):
+                        if m["id"] != member_id:
+                            await deliver_sos(code, trip, ev, m["id"])
+                await push_status(code, trip, ev)
+
+            elif kind == "sos_ack":
+                ev = sos_events.get(code, {}).get(str(data.get("sos_id")))
+                if ev and not ev["resolved"] and ev["member_id"] != member_id:
+                    ev["delivered"].add(member_id)
+                    ev["seen"].add(member_id)
+                    await push_status(code, trip, ev)
+
+            elif kind == "sos_cancel":
+                ev = sos_events.get(code, {}).get(str(data.get("sos_id")))
+                if ev and ev["member_id"] == member_id:
+                    ev["resolved"] = True
+                    await broadcast(code, {"type": "sos_resolved", "sos_id": ev["id"]})
+                    sos_events[code].pop(ev["id"], None)
     except (WebSocketDisconnect, ValueError):
         pass
     finally:

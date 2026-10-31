@@ -4,6 +4,17 @@ import type { Session } from "./trip";
 export type Pos = { lat: number; lng: number; accuracy: number };
 export type MemberLocation = Pos & { ts: number };
 export type ConnStatus = "off" | "connecting" | "live" | "reconnecting";
+export type SosEvent = {
+  id: string;
+  member_id: string;
+  name: string;
+  location: MemberLocation | null;
+  ts: number;
+  resolved: boolean;
+  recipients: number;
+  delivered: number;
+  seen: number;
+};
 
 const WS_BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8000").replace(
   /^http/,
@@ -17,6 +28,10 @@ export function useTripLocations(
 ) {
   const [locations, setLocations] = useState<Record<string, MemberLocation>>({});
   const [status, setStatus] = useState<ConnStatus>("off");
+  const [alerts, setAlerts] = useState<Record<string, SosEvent>>({});
+  const [mySos, setMySos] = useState<SosEvent | null>(null);
+  const [sosPending, setSosPending] = useState(false);
+  const wantSos = useRef<{ pos: Pos | null } | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const code = session?.trip.code;
   const memberId = session?.memberId;
@@ -25,6 +40,10 @@ export function useTripLocations(
   useEffect(() => {
     if (!code || !memberId) {
       setLocations({});
+      setAlerts({});
+      setMySos(null);
+      setSosPending(false);
+      wantSos.current = null;
       setStatus("off");
       return;
     }
@@ -68,6 +87,19 @@ export function useTripLocations(
             delete next[msg.member_id];
             return next;
           });
+        } else if (msg.type === "sos") {
+          setAlerts((prev) => ({ ...prev, [msg.sos.id]: msg.sos }));
+        } else if (msg.type === "sos_status") {
+          setMySos(msg.sos);
+          wantSos.current = null;
+          setSosPending(false);
+        } else if (msg.type === "sos_resolved") {
+          setAlerts((prev) => {
+            const next = { ...prev };
+            delete next[msg.sos_id];
+            return next;
+          });
+          setMySos((prev) => (prev && prev.id === msg.sos_id ? null : prev));
         }
       };
       ws.onclose = () => {
@@ -98,5 +130,39 @@ export function useTripLocations(
     }
   }, [myPos, sharing, status]);
 
-  return { locations, status };
+  // SOS delivery: send now, retry every 3s until the server confirms.
+  // Safe to repeat: the server keeps one active SOS per member.
+  useEffect(() => {
+    if (!sosPending) return;
+    const send = () => {
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN && wantSos.current) {
+        ws.send(JSON.stringify({ type: "sos", ...(wantSos.current.pos ?? {}) }));
+      }
+    };
+    send();
+    const id = setInterval(send, 3000);
+    return () => clearInterval(id);
+  }, [sosPending, status]);
+
+  function sendSos(pos: Pos | null) {
+    wantSos.current = { pos };
+    setSosPending(true);
+  }
+
+  function cancelSos() {
+    const ws = wsRef.current;
+    if (mySos && ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "sos_cancel", sos_id: mySos.id }));
+    }
+  }
+
+  function ackSos(id: string) {
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "sos_ack", sos_id: id }));
+    }
+  }
+
+  return { locations, status, alerts, mySos, sosPending, sendSos, cancelSos, ackSos };
 }

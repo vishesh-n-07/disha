@@ -10,6 +10,7 @@ import {
 import "leaflet/dist/leaflet.css";
 import "./App.css";
 import TripPanel from "./components/TripPanel";
+import SosControls from "./components/SosControls";
 import type { Session } from "./trip";
 import { useTripLocations, type Pos } from "./useTripLocations";
 
@@ -40,7 +41,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [sharing, setSharing] = useState(false);
-  const { locations, status } = useTripLocations(session, pos, sharing);
+  const { locations, status, alerts, mySos, sosPending, sendSos, cancelSos, ackSos } =
+    useTripLocations(session, pos, sharing);
 
   // Sharing always starts OFF for a new trip (explicit consent)
   function handleSession(s: Session | null) {
@@ -102,8 +104,11 @@ export default function App() {
             <CircleMarker
               center={[pos.lat, pos.lng]}
               radius={10}
-              pathOptions={{ color: myColor, fillOpacity: 0.9 }}>
-              <Tooltip permanent direction="top" offset={[0, -10]}>You</Tooltip>
+              pathOptions={{ color: myColor, fillOpacity: 0.9 }}
+            >
+              <Tooltip permanent direction="top" offset={[0, -10]}>
+                You
+              </Tooltip>
             </CircleMarker>
             <Recenter pos={pos} />
           </>
@@ -132,13 +137,44 @@ export default function App() {
                 </CircleMarker>
               );
             })}
+        {Object.values(alerts).map(
+          (a) =>
+            a.location && (
+              <CircleMarker
+                key={a.id}
+                center={[a.location.lat, a.location.lng]}
+                radius={16}
+                pathOptions={{
+                  color: "#b71c1c",
+                  weight: 3,
+                  fillColor: "#e53935",
+                  fillOpacity: 0.7,
+                }}
+              >
+                <Tooltip permanent direction="bottom" offset={[0, 14]}>
+                  SOS: {a.name}
+                </Tooltip>
+              </CircleMarker>
+            )
+        )}
       </MapContainer>
       <TripPanel
         onSession={handleSession}
         sharing={sharing}
         onSharingChange={setSharing}
       />
+      {session && (
+        <SosControls
+          status={status}
+          pos={pos}
+          mySos={mySos}
+          pending={sosPending}
+          alerts={alerts}
+          onSend={sendSos}
+          onCancel={cancelSos}
+          onAck={ackSos}
+        />
+      )}
     </div>
   );
 }
-
