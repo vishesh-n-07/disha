@@ -70,7 +70,16 @@ async def search_places(q: str) -> list[dict]:
     except (ValueError, KeyError, TypeError):
         raise GeocodeError("unavailable")
 
+    seen = set()
+    unique = []
+    for p in results:
+        if p["label"] not in seen:
+            seen.add(p["label"])
+            unique.append(p)
+    results = unique
+
     if len(_cache) >= CACHE_MAX:
         _cache.pop(next(iter(_cache)))
     _cache[key] = (time.time(), results)
     return results
+

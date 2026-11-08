@@ -82,3 +82,5 @@ header { display: flex; justify-content: space-between; align-items: center; }
 .dest-panel .search-row input { width: auto; flex: 1; min-width: 0; margin: 0; }
 .place-results { list-style: none; padding: 0; margin: 6px 0; max-height: 170px; overflow: auto; }
 .place-results button { width: 100%; text-align: left; padding: 6px; margin-bottom: 4px; font-size: .75rem; background: #f3f3f3; border: 1px solid #ddd; border-radius: 6px; }
+
+.app.picking .route-list { display: none; }

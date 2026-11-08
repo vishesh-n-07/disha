@@ -187,7 +187,7 @@ export default function App() {
   }
 
   return (
-    <div className="app">
+    <div className={picking ? "app picking" : "app"}>
       <header>
         <span>DISHA</span>
         {session && <span className="status">{STATUS_LABEL[status]}</span>}
@@ -364,5 +364,6 @@ export default function App() {
     </div>
   );
 }
+
 
 
