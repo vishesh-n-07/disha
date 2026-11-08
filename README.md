@@ -80,6 +80,7 @@ Open http://localhost:5173. To test with two people on one laptop, open a second
 - Invite codes are generated with a cryptographically secure source (`secrets`) from an unambiguous 32-character alphabet.
 - Input is validated on the server (name lengths, coordinate ranges, member limits).
 - SOS sends the sender's latest location even if sharing is off; the confirm dialog says so.
+- Road routes are calculated by OpenRouteService, a third party that receives route start and end coordinates (never names or photos).
 - SOS never claims that help is on the way. It reports exactly what was delivered and seen.
 
 ## Known limitations
@@ -105,6 +106,7 @@ Open http://localhost:5173. To test with two people on one laptop, open a second
 - [ ] PostgreSQL + PostGIS storage
 - [ ] Group separation alerts (configurable distance)
 - [x] Trip destination set by the creator
+- [x] Coloured road routes with distance and ETA per member
 - [ ] Person-to-person navigation
 - [ ] Authentication and rate limiting
 - [ ] Deployment over HTTPS and real-device testing
@@ -113,5 +115,6 @@ Open http://localhost:5173. To test with two people on one laptop, open a second
 ## Competitor note
 
 Google Maps, Apple Find My and Life360 already offer live location sharing. DISHA's focus is the trip-centred workflow: temporary groups, honest SOS delivery status, and separation alerts, with privacy as a design constraint. Any claim of differentiation still needs validation with real users.
+
 
 

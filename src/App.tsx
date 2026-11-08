@@ -9,12 +9,14 @@ import {
   useMap,
   useMapEvents,
 } from "react-leaflet";
+import { Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import "./App.css";
 import TripPanel from "./components/TripPanel";
 import SosControls from "./components/SosControls";
 import AvatarPicker from "./components/AvatarPicker";
 import DestinationPanel from "./components/DestinationPanel";
+import RouteList from "./components/RouteList";
 import type { Session } from "./trip";
 import { useTripLocations, type Pos } from "./useTripLocations";
 import { memberIcon, destinationIcon } from "./memberIcon";
@@ -104,6 +106,8 @@ export default function App() {
     destination,
     sendDestination,
     clearDestination,
+    routes,
+    routeError,
   } = useTripLocations(session, pos, sharing);
 
   // Direction of travel: use the device heading when available, otherwise
@@ -248,6 +252,22 @@ export default function App() {
                 </Marker>
               );
             })}
+        {session &&
+          Object.entries(routes).map(([id, r]) => {
+            const m = session.trip.members.find((x) => x.id === id);
+            if (!m || r.coords.length < 2) return null;
+            return (
+              <Polyline
+                key={id}
+                positions={r.coords}
+                pathOptions={{
+                  color: m.color,
+                  weight: id === session.memberId ? 6 : 4,
+                  opacity: 0.85,
+                }}
+              />
+            );
+          })}
         {session && destination && (
           <Marker position={[destination.lat, destination.lng]} icon={destinationIcon}>
             <Tooltip permanent direction="top" offset={[0, -30]}>
@@ -310,6 +330,16 @@ export default function App() {
             onClear={clearDestination}
             onShow={showDestination}
           />
+          {destination && (
+            <RouteList
+              members={session.trip.members}
+              meId={session.memberId}
+              sharing={sharing}
+              locations={locations}
+              routes={routes}
+              routeError={routeError}
+            />
+          )}
           <AvatarPicker current={avatars[session.memberId]} onPick={sendAvatar} />
           <SosControls
             status={status}
@@ -326,3 +356,4 @@ export default function App() {
     </div>
   );
 }
+

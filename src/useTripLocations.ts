@@ -10,6 +10,7 @@ export type Pos = {
 export type MemberLocation = Pos & { ts: number };
 export type ConnStatus = "off" | "connecting" | "live" | "reconnecting";
 export type Destination = { lat: number; lng: number; name: string };
+export type Route = { coords: [number, number][]; distance_m: number; duration_s: number; arrived?: boolean };
 export type SosEvent = {
   id: string;
   member_id: string;
@@ -35,6 +36,8 @@ export function useTripLocations(
   const [locations, setLocations] = useState<Record<string, MemberLocation>>({});
   const [avatars, setAvatars] = useState<Record<string, string>>({});
   const [destination, setDestination] = useState<Destination | null>(null);
+  const [routes, setRoutes] = useState<Record<string, Route>>({});
+  const [routeError, setRouteError] = useState<string | null>(null);
   const [status, setStatus] = useState<ConnStatus>("off");
   const [alerts, setAlerts] = useState<Record<string, SosEvent>>({});
   const [mySos, setMySos] = useState<SosEvent | null>(null);
@@ -50,6 +53,8 @@ export function useTripLocations(
       setLocations({});
       setAvatars({});
       setDestination(null);
+      setRoutes({});
+      setRouteError(null);
       setAlerts({});
       setMySos(null);
       setSosPending(false);
@@ -101,6 +106,18 @@ export function useTripLocations(
           });
         } else if (msg.type === "destination") {
           setDestination(msg.destination ?? null);
+          setRoutes({});
+          setRouteError(null);
+        } else if (msg.type === "route") {
+          setRoutes((prev) => {
+            const next = { ...prev };
+            if (msg.route) next[msg.member_id] = msg.route;
+            else delete next[msg.member_id];
+            return next;
+          });
+          if (msg.route) setRouteError(null);
+        } else if (msg.type === "route_error") {
+          setRouteError(msg.reason);
         } else if (msg.type === "avatar") {
           setAvatars((prev) => ({ ...prev, [msg.member_id]: msg.avatar }));
         } else if (msg.type === "sos") {
@@ -217,6 +234,9 @@ export function useTripLocations(
     destination,
     sendDestination,
     clearDestination,
+    routes,
+    routeError,
   };
 }
+
 

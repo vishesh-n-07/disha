@@ -229,6 +229,8 @@ async def trip_socket(ws: WebSocket, code: str, member_id: str):
     )
 
     await ws.send_json({"type": "destination", "destination": trip.get("destination")})
+    for mid, r in routing_mgr.snapshot(code).items():
+        await ws.send_json({"type": "route", "member_id": mid, "route": r})
 
     # Re-deliver active SOS alerts (late joiners and reconnects)
     for ev in list(sos_events.get(code, {}).values()):
@@ -251,6 +253,7 @@ async def trip_socket(ws: WebSocket, code: str, member_id: str):
                 if loc is None:
                     continue
                 locations.setdefault(code, {})[member_id] = loc
+                routing_mgr.schedule(code, trip, member_id)
                 await broadcast(
                     code,
                     {"type": "location", "member_id": member_id, **loc},
@@ -258,6 +261,7 @@ async def trip_socket(ws: WebSocket, code: str, member_id: str):
                 )
 
             elif kind == "stop":
+                routing_mgr.clear_member(code, member_id)
                 locations.get(code, {}).pop(member_id, None)
                 await broadcast(
                     code, {"type": "stop", "member_id": member_id}, exclude=member_id
@@ -278,12 +282,14 @@ async def trip_socket(ws: WebSocket, code: str, member_id: str):
                     continue
                 trip["destination"] = dest
                 await broadcast(code, {"type": "destination", "destination": dest})
+                routing_mgr.on_destination_changed(code, trip)
 
             elif kind == "destination_clear":
                 if trip.get("owner_id") != member_id:
                     continue
                 trip["destination"] = None
                 await broadcast(code, {"type": "destination", "destination": None})
+                routing_mgr.on_destination_changed(code, trip)
 
             elif kind == "sos":
                 # One active SOS per member: retries reuse it instead of duplicating
@@ -336,6 +342,7 @@ async def trip_socket(ws: WebSocket, code: str, member_id: str):
         if connections.get(code, {}).get(member_id) is ws:
             del connections[code][member_id]
         locations.get(code, {}).pop(member_id, None)
+        routing_mgr.clear_member(code, member_id)
         await broadcast(code, {"type": "stop", "member_id": member_id})
 
 
@@ -350,3 +357,13 @@ def valid_destination(d: dict) -> dict | None:
         return None
     name = str(d.get("name", "")).strip()[:60] or "Destination"
     return {"lat": lat, "lng": lng, "name": name}
+
+
+
+# ---------- Road routes (OpenRouteService) ----------
+from routing import RouteManager  # noqa: E402
+
+routing_mgr = RouteManager(
+    emit=lambda code, msg: broadcast(code, msg),
+    get_location=lambda code, mid: locations.get(code, {}).get(mid),
+)
