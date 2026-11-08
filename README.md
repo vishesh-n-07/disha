@@ -104,6 +104,7 @@ Open http://localhost:5173. To test with two people on one laptop, open a second
 - [ ] Persist sessions across refresh
 - [ ] PostgreSQL + PostGIS storage
 - [ ] Group separation alerts (configurable distance)
+- [x] Trip destination set by the creator
 - [ ] Person-to-person navigation
 - [ ] Authentication and rate limiting
 - [ ] Deployment over HTTPS and real-device testing
@@ -112,4 +113,5 @@ Open http://localhost:5173. To test with two people on one laptop, open a second
 ## Competitor note
 
 Google Maps, Apple Find My and Life360 already offer live location sharing. DISHA's focus is the trip-centred workflow: temporary groups, honest SOS delivery status, and separation alerts, with privacy as a design constraint. Any claim of differentiation still needs validation with real users.
+
 

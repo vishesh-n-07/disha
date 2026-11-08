@@ -7,29 +7,70 @@ import {
   Marker,
   Tooltip,
   useMap,
+  useMapEvents,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import "./App.css";
 import TripPanel from "./components/TripPanel";
 import SosControls from "./components/SosControls";
 import AvatarPicker from "./components/AvatarPicker";
+import DestinationPanel from "./components/DestinationPanel";
 import type { Session } from "./trip";
 import { useTripLocations, type Pos } from "./useTripLocations";
-import { memberIcon } from "./memberIcon";
+import { memberIcon, destinationIcon } from "./memberIcon";
 import { bearing, distanceM } from "./geo";
 
-function Recenter({ pos }: { pos: Pos }) {
+type LL = { lat: number; lng: number };
+
+// Centres on me at first, then follows me unless the user has dragged the map away
+function Follower({
+  pos,
+  follow,
+  onUserMove,
+}: {
+  pos: Pos;
+  follow: boolean;
+  onUserMove: () => void;
+}) {
   const map = useMap();
   const [centered, setCentered] = useState(false);
+  useMapEvents({ dragstart: onUserMove });
 
   useEffect(() => {
     if (!centered) {
       map.setView([pos.lat, pos.lng], 16);
       setCentered(true);
-    } else {
+    } else if (follow) {
       map.panTo([pos.lat, pos.lng]);
     }
-  }, [pos.lat, pos.lng]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pos.lat, pos.lng, follow]); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
+}
+
+function FlyTo({ target }: { target: (LL & { n: number }) | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (target) map.flyTo([target.lat, target.lng], Math.max(map.getZoom(), 13));
+  }, [target]); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
+}
+
+function ClickCatcher({
+  active,
+  onPick,
+}: {
+  active: boolean;
+  onPick: (p: LL) => void;
+}) {
+  const map = useMap();
+  useMapEvents({
+    click(e) {
+      if (active) onPick({ lat: e.latlng.lat, lng: e.latlng.lng });
+    },
+  });
+  useEffect(() => {
+    map.getContainer().style.cursor = active ? "crosshair" : "";
+  }, [active, map]);
   return null;
 }
 
@@ -45,6 +86,10 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [follow, setFollow] = useState(true);
+  const [picking, setPicking] = useState(false);
+  const [draft, setDraft] = useState<LL | null>(null);
+  const [focus, setFocus] = useState<(LL & { n: number }) | null>(null);
   const {
     locations,
     avatars,
@@ -56,17 +101,25 @@ export default function App() {
     cancelSos,
     ackSos,
     sendAvatar,
+    destination,
+    sendDestination,
+    clearDestination,
   } = useTripLocations(session, pos, sharing);
 
   // Direction of travel: use the device heading when available, otherwise
   // work it out from how far I have moved since the last reference point.
   const lastHeading = useRef<number | null>(null);
-  const anchor = useRef<{ lat: number; lng: number } | null>(null);
+  const anchor = useRef<LL | null>(null);
 
   // Sharing always starts OFF for a new trip (explicit consent)
   function handleSession(s: Session | null) {
     setSession(s);
-    if (!s) setSharing(false);
+    if (!s) {
+      setSharing(false);
+      setPicking(false);
+      setDraft(null);
+      setFollow(true);
+    }
   }
 
   useEffect(() => {
@@ -108,6 +161,20 @@ export default function App() {
     ? session.trip.members.find((m) => m.id === session.memberId)
     : undefined;
   const myColor = me?.color ?? "#1a73e8";
+  const isOwner = !!session && session.trip.owner_id === session.memberId;
+
+  function saveDestination(name: string) {
+    if (!draft) return;
+    sendDestination({ ...draft, name: name.trim() || "Destination" });
+    setPicking(false);
+    setDraft(null);
+  }
+
+  function showDestination() {
+    if (!destination) return;
+    setFollow(false);
+    setFocus({ lat: destination.lat, lng: destination.lng, n: Date.now() });
+  }
 
   return (
     <div className="app">
@@ -121,6 +188,8 @@ export default function App() {
           attribution="&copy; OpenStreetMap contributors"
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        <ClickCatcher active={picking} onPick={setDraft} />
+        <FlyTo target={focus} />
         {pos && (
           <>
             <Circle
@@ -153,7 +222,7 @@ export default function App() {
                 </Tooltip>
               </CircleMarker>
             )}
-            <Recenter pos={pos} />
+            <Follower pos={pos} follow={follow} onUserMove={() => setFollow(false)} />
           </>
         )}
         {session &&
@@ -179,6 +248,16 @@ export default function App() {
                 </Marker>
               );
             })}
+        {session && destination && (
+          <Marker position={[destination.lat, destination.lng]} icon={destinationIcon}>
+            <Tooltip permanent direction="top" offset={[0, -30]}>
+              {destination.name}
+            </Tooltip>
+          </Marker>
+        )}
+        {picking && draft && (
+          <Marker position={[draft.lat, draft.lng]} icon={destinationIcon} opacity={0.6} />
+        )}
         {Object.values(alerts).map(
           (a) =>
             a.location && (
@@ -205,8 +284,32 @@ export default function App() {
         sharing={sharing}
         onSharingChange={setSharing}
       />
+      {!follow && pos && (
+        <button className="follow-btn" onClick={() => setFollow(true)}>
+          Centre on me
+        </button>
+      )}
       {session && (
         <>
+          <DestinationPanel
+            isOwner={isOwner}
+            destination={destination}
+            myPos={pos}
+            picking={picking}
+            draft={draft}
+            connected={status === "live"}
+            onStartPick={() => {
+              setDraft(null);
+              setPicking(true);
+            }}
+            onCancelPick={() => {
+              setPicking(false);
+              setDraft(null);
+            }}
+            onSave={saveDestination}
+            onClear={clearDestination}
+            onShow={showDestination}
+          />
           <AvatarPicker current={avatars[session.memberId]} onPick={sendAvatar} />
           <SosControls
             status={status}

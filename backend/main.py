@@ -77,6 +77,8 @@ def create_trip(body: CreateTripIn):
     }
     owner = make_member(trip, body.owner_name)
     trip["members"].append(owner)
+    trip["owner_id"] = owner["id"]
+    trip["destination"] = None
     trips[trip["code"]] = trip
     return {"trip": trip, "member_id": owner["id"]}
 
@@ -103,6 +105,8 @@ def leave_trip(code: str, member_id: str):
     trip = get_trip(code)
     require_member(trip, member_id)
     trip["members"] = [m for m in trip["members"] if m["id"] != member_id]
+    if trip["members"] and trip.get("owner_id") == member_id:
+        trip["owner_id"] = trip["members"][0]["id"]
     if not trip["members"]:
         del trips[trip["code"]]  # empty trips are removed
 
@@ -224,6 +228,8 @@ async def trip_socket(ws: WebSocket, code: str, member_id: str):
         }
     )
 
+    await ws.send_json({"type": "destination", "destination": trip.get("destination")})
+
     # Re-deliver active SOS alerts (late joiners and reconnects)
     for ev in list(sos_events.get(code, {}).values()):
         if ev["resolved"]:
@@ -263,6 +269,21 @@ async def trip_socket(ws: WebSocket, code: str, member_id: str):
                     continue
                 avatars.setdefault(code, {})[member_id] = av
                 await broadcast(code, {"type": "avatar", "member_id": member_id, "avatar": av})
+
+            elif kind == "destination":
+                if trip.get("owner_id") != member_id:
+                    continue
+                dest = valid_destination(data)
+                if dest is None:
+                    continue
+                trip["destination"] = dest
+                await broadcast(code, {"type": "destination", "destination": dest})
+
+            elif kind == "destination_clear":
+                if trip.get("owner_id") != member_id:
+                    continue
+                trip["destination"] = None
+                await broadcast(code, {"type": "destination", "destination": None})
 
             elif kind == "sos":
                 # One active SOS per member: retries reuse it instead of duplicating
@@ -316,3 +337,16 @@ async def trip_socket(ws: WebSocket, code: str, member_id: str):
             del connections[code][member_id]
         locations.get(code, {}).pop(member_id, None)
         await broadcast(code, {"type": "stop", "member_id": member_id})
+
+
+
+def valid_destination(d: dict) -> dict | None:
+    try:
+        lat = float(d["lat"])
+        lng = float(d["lng"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+        return None
+    name = str(d.get("name", "")).strip()[:60] or "Destination"
+    return {"lat": lat, "lng": lng, "name": name}

@@ -1,5 +1,5 @@
 ﻿export type Member = { id: string; name: string; color: string };
-export type Trip = { id: string; name: string; code: string; members: Member[] };
+export type Trip = { id: string; name: string; code: string; members: Member[]; owner_id?: string };
 export type Session = { trip: Trip; memberId: string };
 
 const API = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
@@ -59,3 +59,4 @@ export function fetchTrip(code: string, memberId: string): Promise<Trip> {
 export function leaveTrip(code: string, memberId: string): Promise<void> {
   return request<void>(`/trips/${code}/members/${memberId}`, { method: "DELETE" });
 }
+

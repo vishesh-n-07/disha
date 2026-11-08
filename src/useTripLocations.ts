@@ -9,6 +9,7 @@ export type Pos = {
 };
 export type MemberLocation = Pos & { ts: number };
 export type ConnStatus = "off" | "connecting" | "live" | "reconnecting";
+export type Destination = { lat: number; lng: number; name: string };
 export type SosEvent = {
   id: string;
   member_id: string;
@@ -33,6 +34,7 @@ export function useTripLocations(
 ) {
   const [locations, setLocations] = useState<Record<string, MemberLocation>>({});
   const [avatars, setAvatars] = useState<Record<string, string>>({});
+  const [destination, setDestination] = useState<Destination | null>(null);
   const [status, setStatus] = useState<ConnStatus>("off");
   const [alerts, setAlerts] = useState<Record<string, SosEvent>>({});
   const [mySos, setMySos] = useState<SosEvent | null>(null);
@@ -47,6 +49,7 @@ export function useTripLocations(
     if (!code || !memberId) {
       setLocations({});
       setAvatars({});
+      setDestination(null);
       setAlerts({});
       setMySos(null);
       setSosPending(false);
@@ -96,6 +99,8 @@ export function useTripLocations(
             delete next[msg.member_id];
             return next;
           });
+        } else if (msg.type === "destination") {
+          setDestination(msg.destination ?? null);
         } else if (msg.type === "avatar") {
           setAvatars((prev) => ({ ...prev, [msg.member_id]: msg.avatar }));
         } else if (msg.type === "sos") {
@@ -175,6 +180,22 @@ export function useTripLocations(
     }
   }
 
+  function sendDestination(d: Destination) {
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(
+        JSON.stringify({ type: "destination", lat: d.lat, lng: d.lng, name: d.name })
+      );
+    }
+  }
+
+  function clearDestination() {
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "destination_clear" }));
+    }
+  }
+
   function sendAvatar(dataUrl: string) {
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -193,5 +214,9 @@ export function useTripLocations(
     cancelSos,
     ackSos,
     sendAvatar,
+    destination,
+    sendDestination,
+    clearDestination,
   };
 }
+

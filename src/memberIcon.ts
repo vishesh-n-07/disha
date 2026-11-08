@@ -37,3 +37,10 @@ export function memberIcon(opts: {
     iconAnchor: [22, 22],
   });
 }
+
+export const destinationIcon = L.divIcon({
+  className: "dest-wrap",
+  html: '<div class="dest-pin">&#127937;</div>',
+  iconSize: [32, 32],
+  iconAnchor: [8, 30],
+});
