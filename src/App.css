@@ -76,3 +76,9 @@ header { display: flex; justify-content: space-between; align-items: center; }
 .route-list .note { margin: 6px 0 0; color: #555; font-size: .7rem; }
 .route-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: .85rem; }
 .route-row .meta { margin-left: auto; color: #555; font-size: .75rem; text-align: right; }
+
+.dest-panel { width: 260px; }
+.dest-panel .search-row { display: flex; gap: 6px; }
+.dest-panel .search-row input { width: auto; flex: 1; min-width: 0; margin: 0; }
+.place-results { list-style: none; padding: 0; margin: 6px 0; max-height: 170px; overflow: auto; }
+.place-results button { width: 100%; text-align: left; padding: 6px; margin-bottom: 4px; font-size: .75rem; background: #f3f3f3; border: 1px solid #ddd; border-radius: 6px; }

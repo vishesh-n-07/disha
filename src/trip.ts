@@ -60,3 +60,11 @@ export function leaveTrip(code: string, memberId: string): Promise<void> {
   return request<void>(`/trips/${code}/members/${memberId}`, { method: "DELETE" });
 }
 
+
+export type Place = { name: string; label: string; lat: number; lng: number };
+
+export function searchPlaces(code: string, memberId: string, q: string): Promise<Place[]> {
+  return request<Place[]>(
+    `/geocode?q=${encodeURIComponent(q)}&code=${encodeURIComponent(code)}&member_id=${encodeURIComponent(memberId)}`
+  );
+}

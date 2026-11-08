@@ -1,5 +1,6 @@
 ﻿import { useState } from "react";
 import { distanceM } from "../geo";
+import type { Place } from "../trip";
 import type { Destination, Pos } from "../useTripLocations";
 
 type Props = {
@@ -14,6 +15,8 @@ type Props = {
   onSave: (name: string) => void;
   onClear: () => void;
   onShow: () => void;
+  onSearch: (q: string) => Promise<Place[]>;
+  onPickPlace: (p: Place) => void;
 };
 
 function fmtDist(m: number) {
@@ -32,9 +35,37 @@ export default function DestinationPanel({
   onSave,
   onClear,
   onShow,
+  onSearch,
+  onPickPlace,
 }: Props) {
   const [name, setName] = useState("");
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<Place[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const dist = destination && myPos ? distanceM(myPos, destination) : null;
+
+  function resetSearch() {
+    setQuery("");
+    setResults(null);
+    setSearchError(null);
+  }
+
+  async function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    const q = query.trim();
+    if (q.length < 3 || searching) return;
+    setSearching(true);
+    setSearchError(null);
+    try {
+      setResults(await onSearch(q));
+    } catch (err) {
+      setResults(null);
+      setSearchError(err instanceof Error ? err.message : "Search failed");
+    } finally {
+      setSearching(false);
+    }
+  }
 
   return (
     <aside className="dest-panel">
@@ -42,7 +73,40 @@ export default function DestinationPanel({
 
       {picking ? (
         <>
-          <p>{draft ? "Name it, then save." : "Tap the map to place the destination."}</p>
+          <form className="search-row" onSubmit={handleSearch}>
+            <input
+              placeholder="Search a place"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              maxLength={100}
+            />
+            <button type="submit" disabled={searching || query.trim().length < 3}>
+              {searching ? "..." : "Search"}
+            </button>
+          </form>
+          {searchError && <p className="panel-error">{searchError}</p>}
+          {results !== null && results.length === 0 && (
+            <p className="note">No places found. Try adding the city or state.</p>
+          )}
+          {results !== null && results.length > 0 && (
+            <ul className="place-results">
+              {results.map((p, i) => (
+                <li key={`${p.lat},${p.lng},${i}`}>
+                  <button
+                    onClick={() => {
+                      onPickPlace(p);
+                      setName(p.name);
+                      setResults(null);
+                      setQuery("");
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p>{draft ? "Check the name, then save." : "Or tap the map to place it."}</p>
           {draft && (
             <>
               <input
@@ -56,6 +120,7 @@ export default function DestinationPanel({
                 onClick={() => {
                   onSave(name);
                   setName("");
+                  resetSearch();
                 }}
               >
                 {connected ? "Save" : "Reconnecting..."}
@@ -67,10 +132,12 @@ export default function DestinationPanel({
             onClick={() => {
               onCancelPick();
               setName("");
+              resetSearch();
             }}
           >
             Cancel
           </button>
+          <p className="note">Place search by OpenStreetMap Nominatim.</p>
         </>
       ) : destination ? (
         <>

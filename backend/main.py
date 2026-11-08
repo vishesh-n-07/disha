@@ -367,3 +367,24 @@ routing_mgr = RouteManager(
     emit=lambda code, msg: broadcast(code, msg),
     get_location=lambda code, mid: locations.get(code, {}).get(mid),
 )
+
+
+# ---------- Place search (destination) ----------
+from geocode import GeocodeError, search_places  # noqa: E402
+
+
+@app.get("/geocode")
+async def geocode(q: str, code: str, member_id: str):
+    trip = get_trip(code)
+    require_member(trip, member_id)
+    if trip.get("owner_id") != member_id:
+        raise HTTPException(status_code=403, detail="Only the trip creator can search for a destination")
+    q = " ".join(q.split())
+    if not (3 <= len(q) <= 100):
+        raise HTTPException(status_code=422, detail="Type 3 to 100 characters")
+    try:
+        return await search_places(q)
+    except GeocodeError as e:
+        if e.reason == "busy":
+            raise HTTPException(status_code=429, detail="Search is busy, try again in a moment")
+        raise HTTPException(status_code=503, detail="Place search is unavailable right now")

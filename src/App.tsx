@@ -17,7 +17,7 @@ import SosControls from "./components/SosControls";
 import AvatarPicker from "./components/AvatarPicker";
 import DestinationPanel from "./components/DestinationPanel";
 import RouteList from "./components/RouteList";
-import type { Session } from "./trip";
+import { searchPlaces, type Place, type Session } from "./trip";
 import { useTripLocations, type Pos } from "./useTripLocations";
 import { memberIcon, destinationIcon } from "./memberIcon";
 import { bearing, distanceM } from "./geo";
@@ -172,6 +172,12 @@ export default function App() {
     sendDestination({ ...draft, name: name.trim() || "Destination" });
     setPicking(false);
     setDraft(null);
+  }
+
+  function pickPlace(p: Place) {
+    setDraft({ lat: p.lat, lng: p.lng });
+    setFollow(false);
+    setFocus({ lat: p.lat, lng: p.lng, n: Date.now() });
   }
 
   function showDestination() {
@@ -329,6 +335,8 @@ export default function App() {
             onSave={saveDestination}
             onClear={clearDestination}
             onShow={showDestination}
+            onSearch={(q) => searchPlaces(session.trip.code, session.memberId, q)}
+            onPickPlace={pickPlace}
           />
           {destination && (
             <RouteList
@@ -356,4 +364,5 @@ export default function App() {
     </div>
   );
 }
+
 

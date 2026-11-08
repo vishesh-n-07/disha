@@ -81,6 +81,7 @@ Open http://localhost:5173. To test with two people on one laptop, open a second
 - Input is validated on the server (name lengths, coordinate ranges, member limits).
 - SOS sends the sender's latest location even if sharing is off; the confirm dialog says so.
 - Road routes are calculated by OpenRouteService, a third party that receives route start and end coordinates (never names or photos).
+- Destination search uses OpenStreetMap Nominatim through the server (search on Enter, results cached, 1 request/second limit).
 - SOS never claims that help is on the way. It reports exactly what was delivered and seen.
 
 ## Known limitations
@@ -115,6 +116,7 @@ Open http://localhost:5173. To test with two people on one laptop, open a second
 ## Competitor note
 
 Google Maps, Apple Find My and Life360 already offer live location sharing. DISHA's focus is the trip-centred workflow: temporary groups, honest SOS delivery status, and separation alerts, with privacy as a design constraint. Any claim of differentiation still needs validation with real users.
+
 
 
 
