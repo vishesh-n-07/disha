@@ -27,3 +27,5 @@ backend/.venv/
 __pycache__/
 
 backend/.env
+
+.pytest_cache/

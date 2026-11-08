@@ -1,5 +1,7 @@
 ﻿# DISHA
 
+![Backend tests](https://github.com/vishesh-n-07/disha/actions/workflows/backend-tests.yml/badge.svg)
+
 **Direction.** A group mobility and personal-safety app: a shared live map for trip groups, with an SOS alert that goes **only to members of the same trip**.
 
 > **Status:** working prototype (browser-based). Not production-ready. See "Known limitations" below.
@@ -72,6 +74,18 @@ Frontend (terminal 2):
 
 Open http://localhost:5173. To test with two people on one laptop, open a second window and set a different location in Chrome DevTools: Sensors, then Location.
 
+## Tests
+
+Backend tests cover the trip rules, WebSocket access control, location sharing, SOS delivery, destinations, photos, routing and place search. Routing and search use fakes, so the tests need no API key and no network.
+
+Run them with:
+
+    cd backend
+    .venv/Scripts/python -m pip install -r requirements-dev.txt
+    .venv/Scripts/python -m pytest
+
+They also run on every push through GitHub Actions.
+
 ## Privacy and safety design
 
 - Location sharing is **off by default** for every new trip and can be stopped at any time.
@@ -102,7 +116,7 @@ Open http://localhost:5173. To test with two people on one laptop, open a second
 - [x] Real-time multi-user locations (FastAPI + WebSockets)
 - [x] SOS to trip members with delivery status, acknowledgement and retry
 - [x] Photo and direction pins
-- [ ] Automated tests (backend API and WebSocket flows)
+- [x] Automated tests (backend API and WebSocket flows)
 - [ ] Persist sessions across refresh
 - [ ] PostgreSQL + PostGIS storage
 - [ ] Group separation alerts (configurable distance)
@@ -116,6 +130,7 @@ Open http://localhost:5173. To test with two people on one laptop, open a second
 ## Competitor note
 
 Google Maps, Apple Find My and Life360 already offer live location sharing. DISHA's focus is the trip-centred workflow: temporary groups, honest SOS delivery status, and separation alerts, with privacy as a design constraint. Any claim of differentiation still needs validation with real users.
+
 
 
 
